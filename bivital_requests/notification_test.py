@@ -3,6 +3,7 @@ import bluepy.btle as btle
 import json
 import hashlib
 import sys
+import time
 
 def to_node(type, message):
 	# convert to json and print (node helper will read from stdout)
@@ -19,12 +20,13 @@ class MyDelegate(btle.DefaultDelegate):
 
     def handleNotification(self, cHandle, data):
         #print("A notification was received: %s" %data)
-        data = interpret(data)
+        data = interpret_enviroment(data)
         #print(data)
-        to_node('HR', data["hr"])
+        #to_node('HR', data["hr"])
+        #to_node('RR', data["rr"])
 
 
-def interpret(data):
+def interpret_hr(data):
     """
     data is a list of integers corresponding to readings from the BLE HR monitor
     """
@@ -61,22 +63,57 @@ def interpret(data):
             i += 2
 
     return res
-try:
-    p = btle.Peripheral("D0:C7:92:78:89:C0", btle.ADDR_TYPE_RANDOM)    
-#p = btle.Peripheral("c1:62:85:73:9e:d3", btle.ADDR_TYPE_RANDOM)    
-except btle.BTLEException as e:
-    print(e.code)
-    print(e.message)
+
+
+def interpret_enviroment(data):
+    res = {}
+
+    byte0 = data[0]
+    byte1 = data[1]
+    byte2 = data[2]
+
+    print("1:" + (data[2] << 8) | data[1])
+    print("2:" + (data[3] << 8) | data[2])
+    print("3:" + (data[1] << 8) | data[0])
+
+    return res
+
+
+max_retries = 10
+
+while max_retries > 0:
+    
+    try:
+        time.sleep(2)
+        #p = btle.Peripheral("D0:C7:92:78:89:C0", btle.ADDR_TYPE_RANDOM)    
+        #p = btle.Peripheral("C0:57:63:3D:99:D8", btle.ADDR_TYPE_RANDOM)
+        p = btle.Peripheral("E7:23:C3:A8:0B:81", btle.ADDR_TYPE_RANDOM)
+        #p = btle.Peripheral("c1:62:85:73:9e:d3", btle.ADDR_TYPE_RANDOM)
+        print("Connected!")
+        break
+    except btle.BTLEException as e:
+        print(e.code)
+        print(e.message)
+
+    max_retries = max_retries - 1
 
 
 p.setDelegate( MyDelegate() )
 
 # Setup to turn notifications on, e.g.
-svc = p.getServiceByUUID(0x180d)
-ch = svc.getCharacteristics()[0]
+#svc = p.getServiceByUUID(0x180d)
+#ch = svc.getCharacteristics()[0]
 #print(ch.valHandle)
 
-p.writeCharacteristic(ch.valHandle+1, b"\x01\x00")
+#p.writeCharacteristic(ch.valHandle+1, b"\x01\x00")
+
+svc = p.getServiceByUUID('EF680200-9B35-4933-9B10-52FFA9740042')
+ch = svc.getCharacteristics()[0]
+desc = svc.getDescriptors('EF680201-9B35-4933-9B10-52FFA9740042')
+print(ch.valHandle)
+print(svc)
+
+p.writeCharacteristic(desc[0].handle, b"\x01\x00")
 
 while True:
     if p.waitForNotifications(1.0):
